@@ -5,6 +5,9 @@ const http = require("http");
 const socketIo = require("socket.io");
 const app = express();
 const server = http.createServer(app);
+const session = require("express-session");
+const bcrypt = require("bcryptjs");
+
 const User = require("./models/User");
 
 const io = socketIo(server, {
@@ -21,20 +24,20 @@ mongoose
   .connect(MONGO_URI)
   .then(async () => {
     console.log("MongoDB connected");
-
-    const user1 = new User({ username: "Alice" });
-    const user2 = new User({ username: "Bob", friends: [user1._id] });
-
-    await user1.save();
-    await user2.save();
-
-    console.log("Users created");
   })
   .catch((err) => console.error("MongoDB connection error:", err));
 
+app.use(cors());
+app.use(express.json());
+
 app.use(
-  cors({
-    origin: "http://localhost",
+  session({
+    secret: "1234",
+    resave: false,
+    saveUninitialized: true,
+    cookie: {
+      maxAge: 1000 * 60 * 60 * 24,
+    },
   })
 );
 
@@ -53,6 +56,8 @@ io.on("connection", (socket) => {
     console.log("User disconnected");
   });
 });
+
+app.use("/auth", require("./routes/auth"));
 
 server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
