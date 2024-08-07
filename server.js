@@ -7,8 +7,63 @@ const app = express();
 const server = http.createServer(app);
 const session = require("express-session");
 const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const JWT_SECRET = "williaminau";
 
 const User = require("./models/User");
+
+const WebSocket = require("ws");
+const wss = new WebSocket.Server({ port: 8080 });
+
+wss.on("connection", async (ws, req) => {
+  const params = new URLSearchParams(req.url.split("?")[1]);
+  const token = params.get("token");
+
+  if (!token) {
+    ws.close(1008, "Token missing");
+    return;
+  }
+
+  let user;
+
+  async function sendUserUpdate() {
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      user = await User.findById(decoded.userId);
+    } catch (error) {
+      ws.close(1008, "Invalid token");
+      return;
+    }
+
+    ws.send(
+      JSON.stringify({
+        type: "USER_UPDATE",
+        user: {
+          email: user.email,
+          username: user.username,
+          friends: user.friends,
+          _id: user._id,
+        },
+      })
+    );
+  }
+
+  sendUserUpdate();
+
+  setInterval(sendUserUpdate, 1000);
+
+  ws.on("close", () => {
+    console.log("websocket disconnected");
+  });
+
+  ws.on("message", (message) => {
+    console.log("received: %s", message);
+  });
+
+  ws.on("error", (err) => {
+    console.error(err);
+  });
+});
 
 const io = socketIo(server, {
   cors: {
@@ -46,18 +101,19 @@ app.get("/", (req, res) => {
 });
 
 io.on("connection", (socket) => {
-  console.log("A user connected");
+  console.log("websocket connected");
 
   socket.on("chat message", (msg) => {
     io.emit("chat message", msg);
   });
 
   socket.on("disconnect", () => {
-    console.log("User disconnected");
+    console.log("websocket disconnected");
   });
 });
 
 app.use("/auth", require("./routes/auth"));
+app.use("/users", require("./routes/users"));
 
 server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
