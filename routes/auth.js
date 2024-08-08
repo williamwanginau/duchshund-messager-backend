@@ -61,6 +61,8 @@ router.post("/login", async (req, res) => {
     const { email, password } = req.body;
     const user = await User.findOne({ email });
 
+    console.log("JWT_SECRET", JWT_SECRET);
+
     // Check if user exists
     if (!user)
       return res
