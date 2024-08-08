@@ -3,13 +3,14 @@ const User = require("../models/User");
 const router = express.Router();
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
-const JWT_SECRET = "williaminau";
 const responseHelper = require("../helpers/responseHelper");
 
+const JWT_SECRET = process.env.JWT_SECRET;
 router.post("/register", async (req, res) => {
   const { username, password, email } = req.body;
 
   try {
+    // Check if all fields are filled
     if (!username || !password || !email) {
       return res
         .status(400)
@@ -18,13 +19,30 @@ router.post("/register", async (req, res) => {
         );
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const user = new User({ username, password: hashedPassword, email });
-    await user.save();
+    // Check email if user already exists
+    const user = await User.findOne({ email });
 
-    const token = jwt.sign({ userId: user._id, username, email }, JWT_SECRET, {
-      expiresIn: "1h",
-    });
+    if (user)
+      return res
+        .status(409)
+        .json(
+          responseHelper.generateErrorResponse(
+            409,
+            "This email is already registered"
+          )
+        );
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newUser = new User({ username, password: hashedPassword, email });
+    await newUser.save();
+
+    const token = jwt.sign(
+      { userId: newUser._id, username, email },
+      JWT_SECRET,
+      {
+        expiresIn: "1h",
+      }
+    );
 
     res.status(200).json(
       responseHelper.generateSuccessResponse(200, "User registered", {
@@ -43,6 +61,7 @@ router.post("/login", async (req, res) => {
     const { email, password } = req.body;
     const user = await User.findOne({ email });
 
+    // Check if user exists
     if (!user)
       return res
         .status(401)
@@ -50,6 +69,7 @@ router.post("/login", async (req, res) => {
           responseHelper.generateErrorResponse(401, "Invalid email or password")
         );
 
+    // Check if password is correct
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid)
       return res
