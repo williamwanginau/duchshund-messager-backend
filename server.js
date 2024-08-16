@@ -16,41 +16,19 @@ const WebSocket = require("ws");
 const wss = new WebSocket.Server({ port: 8080 });
 
 wss.on("connection", async (ws, req) => {
-  const params = new URLSearchParams(req.url.split("?")[1]);
-  const token = params.get("token");
-
-  if (!token) {
-    ws.close(1008, "Token missing");
-    return;
-  }
-
   let user;
 
-  async function sendUserUpdate() {
-    try {
-      const decoded = jwt.verify(token, JWT_SECRET);
-      user = await User.findById(decoded.userId);
-    } catch (error) {
-      ws.close(1008, "Invalid token");
-      return;
-    }
-
-    ws.send(
-      JSON.stringify({
-        type: "USER_UPDATE",
-        user: {
-          email: user.email,
-          username: user.username,
-          friends: user.friends,
-          _id: user._id,
-        },
-      })
-    );
-  }
-
-  sendUserUpdate();
-
-  setInterval(sendUserUpdate, 1000);
+  ws.send(
+    JSON.stringify({
+      type: "hello",
+      user: {
+        email: "1234",
+        username: "1234",
+        friends: "1234",
+        _id: "1234",
+      },
+    })
+  );
 
   ws.on("close", () => {
     console.log("websocket disconnected");

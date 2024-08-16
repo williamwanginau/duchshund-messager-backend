@@ -6,11 +6,11 @@ const jwt = require("jsonwebtoken");
 const responseHelper = require("../helpers/responseHelper");
 
 const JWT_SECRET = process.env.JWT_SECRET;
+
 router.post("/register", async (req, res) => {
   const { username, password, email } = req.body;
 
   try {
-    // Check if all fields are filled
     if (!username || !password || !email) {
       return res
         .status(400)
@@ -19,9 +19,7 @@ router.post("/register", async (req, res) => {
         );
     }
 
-    // Check email if user already exists
     const user = await User.findOne({ email });
-
     if (user)
       return res
         .status(409)
@@ -91,6 +89,12 @@ router.post("/login", async (req, res) => {
     res.status(200).json(
       responseHelper.generateSuccessResponse(200, "Successful login", {
         token,
+        user: {
+          username: user.username,
+          email: user.email,
+          id: user._id,
+          token,
+        },
       })
     );
   } catch (err) {
