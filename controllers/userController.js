@@ -1,4 +1,5 @@
-const { notifyChanges } = require("../services/notificationService");
+const { userChanges } = require("../services/notificationService");
+const { getUserInfo } = require("../services/userService");
 
 const User = require("../models/User");
 const responseHelper = require("../helpers/responseHelper");
@@ -64,29 +65,22 @@ const sendFriendRequest = async (req, res) => {
     const createdAt = new Date();
 
     user.friends.push({
-      _id: newFriend._id,
+      friendInfo: newFriend._id,
       status: "pending",
       createdAt,
     });
 
     newFriend.requests.push({
-      _id: user._id,
+      friendInfo: user._id,
       status: "pending",
       createdAt,
     });
 
-    notifyChanges(user._id, "UserInfoUpdated", {
-      user: {
-        _id: user._id,
-        friends: user.friends,
-        requests: newFriend.requests,
-        email: user.email,
-        username: user.username,
-      },
-    });
-
     await user.save();
     await newFriend.save();
+
+    userChanges(user);
+    userChanges(newFriend);
 
     return res.status(200).json(
       responseHelper.generateSuccessResponse(200, "Friend request sent", {
@@ -104,31 +98,13 @@ const getFriends = async (req, res) => {
   try {
     const { userId } = req.params;
     const user = await User.findById(userId).populate({
-      path: "friends._id",
+      path: "friends.friendInfo",
       select: "username email",
-    });
-
-    const friendsWithDetails = user.friends.map((friend) => {
-      if (friend._id) {
-        return {
-          _id: friend._id._id,
-          username: friend._id.username,
-          email: friend._id.email,
-          status: friend.status,
-          createdAt: friend.createdAt,
-        };
-      } else {
-        return {
-          _id: friend._id,
-          status: friend.status,
-          createdAt: friend.createdAt,
-        };
-      }
     });
 
     res.status(200).json(
       responseHelper.generateSuccessResponse(200, "User registered", {
-        friends: friendsWithDetails,
+        friends: user.friends,
       })
     );
   } catch (error) {
@@ -141,19 +117,17 @@ const getFriends = async (req, res) => {
 
 const getUser = async (req, res) => {
   try {
-    const user = await User.findById(req.userId);
+    const userInfo = await getUserInfo(req.userId, req.userToken);
 
-    res.status(200).json(
-      responseHelper.generateSuccessResponse(200, "User registered", {
-        user: {
-          email: user.email,
-          username: user.username,
-          _id: user._id,
-          token: req.userToken,
-          friends: user.friends,
-        },
-      })
-    );
+    res
+      .status(200)
+      .json(
+        responseHelper.generateSuccessResponse(
+          200,
+          "User information retrieved successfully",
+          { user: userInfo }
+        )
+      );
   } catch (err) {
     res.status(500).json({ error: "Error getting user: " + err.message });
   }
@@ -191,9 +165,104 @@ const searchUser = async (req, res) => {
   }
 };
 
-const getFriendRequests = async (req, res) => {};
+const getFriendRequests = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const user = await User.findById(userId).populate({
+      path: "requests.friendInfo",
+      select: "username email",
+    });
 
-const acceptFriendRequest = async (req, res) => {};
+    res.status(200).json(
+      responseHelper.generateSuccessResponse(200, "Friend requests", {
+        requests: user.requests,
+      })
+    );
+  } catch (err) {
+    res
+      .status(500)
+      .json(
+        responseHelper.generateErrorResponse(
+          500,
+          "Error getting friend requests: " + err.message
+        )
+      );
+  }
+};
+
+const acceptFriendRequest = async (req, res) => {
+  try {
+    const { userId, requestId } = req.params;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res
+        .status(404)
+        .json(responseHelper.generateErrorResponse(404, "User not found"));
+    }
+
+    const request = user.requests.find((request) =>
+      request._id.equals(requestId)
+    );
+    if (!request) {
+      return res
+        .status(404)
+        .json(
+          responseHelper.generateErrorResponse(404, "Friend request not found")
+        );
+    }
+
+    const friendId = request.friendInfo._id;
+    const friend = await User.findById(friendId);
+    if (!friendId) {
+      return res
+        .status(404)
+        .json(responseHelper.generateErrorResponse(404, "Friend not found"));
+    }
+
+    // update user's friends list
+    user.friends.push({
+      friendInfo: friendId,
+      status: "accepted",
+      createdAt: new Date(),
+    });
+
+    // remove request from user's requests list
+    user.requests = user.requests.filter(
+      (request) => !request._id.equals(requestId)
+    );
+
+    // update friend's friends list
+    const friendRequest = friend.friends.find((friend) =>
+      friend.friendInfo.equals(userId)
+    );
+
+    if (friendRequest) {
+      friendRequest.status = "accepted";
+    }
+
+    await user.save();
+    await friend.save();
+
+    userChanges(user);
+    userChanges(friend);
+
+    return res.status(200).json(
+      responseHelper.generateSuccessResponse(200, "Friend request accepted", {
+        request,
+      })
+    );
+  } catch (err) {
+    res
+      .status(500)
+      .json(
+        responseHelper.generateErrorResponse(
+          500,
+          "Error accepting friend request: " + err.message
+        )
+      );
+  }
+};
 
 module.exports = {
   getFriendRequests,

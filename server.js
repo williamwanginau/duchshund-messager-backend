@@ -8,7 +8,7 @@ const session = require("express-session");
 require("dotenv").config();
 const userRoutes = require("./routes/users");
 const authRoutes = require("./routes/auth");
-const socketIo = require("socket.io");
+const chatRoomRoutes = require("./routes/chatroom");
 const PORT = process.env.PORT || 3000;
 const MONGO_URI = process.env.MONGO_URI || "mongodb://localhost:27017/chat";
 
@@ -30,7 +30,7 @@ app.use(
 // Routes
 app.use("/auth", authRoutes);
 app.use("/users", userRoutes);
-
+app.use("/chatroom", chatRoomRoutes);
 // WebSocket setup
 initSocket(server);
 

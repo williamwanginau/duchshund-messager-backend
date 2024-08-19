@@ -4,6 +4,7 @@ const router = express.Router();
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const responseHelper = require("../helpers/responseHelper");
+const { getUserInfo } = require("../services/userService");
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -84,15 +85,12 @@ const login = async (req, res) => {
       }
     );
 
+    const userInfo = await getUserInfo(req.userId, req.userToken);
+
     res.status(200).json(
       responseHelper.generateSuccessResponse(200, "Successful login", {
         token,
-        user: {
-          username: user.username,
-          email: user.email,
-          _id: user._id,
-          token,
-        },
+        user: userInfo,
       })
     );
   } catch (err) {
