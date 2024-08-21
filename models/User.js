@@ -21,9 +21,11 @@ const requestSchema = new mongoose.Schema({
 });
 
 const chatRoomSchema = new mongoose.Schema({
-  type: { type: String, enum: ["private", "group"], required: true },
-  members: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-  chatRoomId: { type: mongoose.Schema.Types.ObjectId, ref: "ChatRoom" },
+  _id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "ChatRoom",
+    alias: "chatRoomId",
+  },
 });
 
 const userSchema = new mongoose.Schema({

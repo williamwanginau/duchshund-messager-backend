@@ -1,4 +1,5 @@
 const User = require("../models/User");
+const ChatRoom = require("../models/ChatRoom");
 
 const getUserInfo = async (userId, userToken) => {
   const user = await User.findById(userId)
@@ -6,15 +7,25 @@ const getUserInfo = async (userId, userToken) => {
       path: "friends.friendInfo",
       select: "username email",
     })
+
     .populate({
-      path: "chatRooms",
+      path: "chatRooms._id",
       populate: {
         path: "members",
-        select: "username email",
+        select: "type",
       },
     });
 
   return user;
 };
 
-module.exports = { getUserInfo };
+const getChatRoomInfo = async (chatRoomId) => {
+  const chatRoom = await ChatRoom.findById(chatRoomId).populate({
+    path: "members",
+    select: "username email",
+  });
+
+  return chatRoom;
+};
+
+module.exports = { getUserInfo, getChatRoomInfo };
