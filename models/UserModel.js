@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const bcrypt = require("bcrypt");
 
 const friendSchema = new mongoose.Schema({
   friendInfo: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
@@ -36,6 +37,13 @@ const userSchema = new mongoose.Schema({
   requests: [requestSchema],
   chatRooms: [chatRoomSchema],
 });
+
+userSchema.methods.correctPassword = async function (
+  candidatePassword,
+  userPassword
+) {
+  return await bcrypt.compare(candidatePassword, userPassword);
+};
 
 const User = mongoose.model("User", userSchema);
 

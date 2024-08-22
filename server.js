@@ -7,7 +7,7 @@ const server = http.createServer(app);
 const session = require("express-session");
 require("dotenv").config();
 const userRoutes = require("./routes/users");
-const authRoutes = require("./routes/auth");
+const authRoutes = require("./routes/userRoutes");
 const chatRoomRoutes = require("./routes/chatroom");
 const PORT = process.env.PORT || 3000;
 const MONGO_URI = process.env.MONGO_URI || "mongodb://localhost:27017/chat";

@@ -1,112 +1,86 @@
-const express = require("express");
-const User = require("../models/User");
-const router = express.Router();
+const User = require("../models/UserModel");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
-const responseHelper = require("../helpers/responseHelper");
-const { getUserInfo } = require("../services/userService");
+const catchAsync = require("./../utils/catchAsync");
+const AppError = require("../utils/appError");
 
-const JWT_SECRET = process.env.JWT_SECRET;
+const signToken = (id) => {
+  return jwt.sign({ id }, process.env.JWT_SECRET, {
+    expiresIn: Number(process.env.JWT_COOKIE_EXPIRES_IN),
+  });
+};
 
-const register = async (req, res) => {
-  const { username, password, email } = req.body;
+const createSendToken = (user, statusCode, req, res) => {
+  const token = signToken(user._id);
 
-  try {
-    if (!username || !password || !email) {
-      return res
-        .status(400)
-        .json(
-          responseHelper.generateErrorResponse(400, "Please enter all fields")
-        );
-    }
+  res.cookie("jwt", token, {
+    expires: new Date(Date.now() + Number(process.env.JWT_COOKIE_EXPIRES_IN)),
+    httpOnly: true,
+    secure: req.secure || req.headers["x-forwarded-proto"] === "https",
+  });
 
-    const user = await User.findOne({ email });
-    if (user)
-      return res
-        .status(409)
-        .json(
-          responseHelper.generateErrorResponse(
-            409,
-            "This email is already registered"
-          )
-        );
+  user.password = undefined;
 
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const newUser = new User({ username, password: hashedPassword, email });
-    await newUser.save();
+  res.status(statusCode).json({
+    status: "success",
+    token,
+    data: {
+      user,
+    },
+  });
+};
 
-    const token = jwt.sign(
-      { userId: newUser._id, username, email },
-      JWT_SECRET,
-      {
-        expiresIn: "1h",
-      }
+const signup = catchAsync(async (req, res, next) => {
+  const { username, email, password } = req.body;
+
+  if (!username || !email || !password) {
+    return next(
+      new AppError("Please provide username, email and password!", 400)
     );
-
-    res.status(200).json(
-      responseHelper.generateSuccessResponse(200, "User registered", {
-        token,
-      })
-    );
-  } catch (error) {
-    res
-      .status(400)
-      .json(responseHelper.generateErrorResponse(400, "User already exists"));
   }
-};
 
-const login = async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    const user = await User.findOne({ email });
-
-    // Check if user exists
-    if (!user)
-      return res
-        .status(401)
-        .json(
-          responseHelper.generateErrorResponse(401, "Invalid email or password")
-        );
-
-    // Check if password is correct
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid)
-      return res
-        .status(401)
-        .json(
-          responseHelper.generateErrorResponse(401, "Invalid email or password")
-        );
-
-    const token = jwt.sign(
-      { userId: user._id, username: user.username, email: user.email },
-      JWT_SECRET,
-      {
-        expiresIn: "1h",
-      }
-    );
-
-    const userInfo = await getUserInfo(req.userId, req.userToken);
-
-    res.status(200).json(
-      responseHelper.generateSuccessResponse(200, "Successful login", {
-        token,
-        user: userInfo,
-      })
-    );
-  } catch (err) {
-    console.error(err);
-    res
-      .status(500)
-      .json(responseHelper.generateErrorResponse(500, "Internal server error"));
+  // check if user already exists
+  const existingUser = await User.findOne({ email });
+  if (existingUser) {
+    return next(new AppError("User already exists", 400));
   }
-};
 
-const logout = async (req, res) => {
-  res.status(200).json(
-    responseHelper.generateSuccessResponse(200, "Successful logout", {
-      token,
-    })
-  );
-};
+  // hash password
+  const salt = await bcrypt.genSalt(10);
+  const hashedPassword = await bcrypt.hash(password, salt);
 
-module.exports = { register, login, logout };
+  const newUser = await User.create({
+    username: req.body.username,
+    email: req.body.email,
+    password: hashedPassword,
+  });
+
+  createSendToken(newUser, 201, req, res);
+});
+
+const login = catchAsync(async (req, res, next) => {
+  const { email, password } = req.body;
+
+  // 1) Check if email and password exist
+  if (!email || !password) {
+    return next(new AppError("Please provide email and password!", 400));
+  }
+  // 2) Check if user exists && password is correct
+  const user = await User.findOne({ email }).select("+password");
+
+  if (!user || !(await user.correctPassword(password, user.password))) {
+    return next(new AppError("Incorrect email or password", 401));
+  }
+
+  // 3) If everything ok, send token to client
+  createSendToken(user, 200, req, res);
+});
+
+const logout = (req, res) => {
+  res.cookie("jwt", "loggedout", {
+    expires: new Date(Date.now() + 1 * 1000),
+    httpOnly: true,
+  });
+  res.status(200).json({ status: "success" });
+};
+module.exports = { signup, logout, login };

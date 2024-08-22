@@ -1,4 +1,4 @@
-const User = require("../models/User");
+const User = require("../models/UserModel");
 const ChatRoom = require("../models/ChatRoom");
 
 const getUserInfo = async (userId, userToken) => {

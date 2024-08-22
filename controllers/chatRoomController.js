@@ -1,5 +1,5 @@
 const ChatRoom = require("../models/ChatRoom");
-const User = require("../models/User");
+const User = require("../models/UserModel");
 const { userChanges } = require("../services/notificationService");
 const { getChatRoomInfo } = require("../services/userService");
 

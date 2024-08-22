@@ -1,7 +1,7 @@
 const { userChanges } = require("../services/notificationService");
 const { getUserInfo } = require("../services/userService");
 
-const User = require("../models/User");
+const User = require("../models/UserModel");
 const responseHelper = require("../helpers/responseHelper");
 
 const sendFriendRequest = async (req, res) => {
